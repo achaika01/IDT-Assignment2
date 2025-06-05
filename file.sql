@@ -1,3 +1,7 @@
+CREATE INDEX sales_personID_ind ON sales(SalesPersonID);
+CREATE INDEX productID_ind ON sales(ProductID);
+CREATE INDEX productID_salesDate_ind ON sales(SalesDate, ProductID);
+
 SELECT s.SalesID, s.SalesPersonID, s.CustomerID, s.ProductID, s.Quantity, s.Discount, s.TotalPrice, s.SalesDate, s.TransactionNumber,
 
 (SELECT COUNT(*) 
