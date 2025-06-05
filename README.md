@@ -198,6 +198,11 @@ ORDER BY
 
 ![image](https://github.com/user-attachments/assets/f0332fbe-cf40-47e4-8d3f-e6302e2b57a5)
 
+CREATE INDEX idx_salesdate_product ON sales (SalesDate, ProductID);
+
+![image](https://github.com/user-attachments/assets/46de6c95-448a-4089-89f1-2dbc5f1354b1)
+
+
 
 
 
