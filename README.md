@@ -196,7 +196,7 @@ ORDER BY
     s.SalesPersonID DESC,
     s.SalesDate ASC;
 
-    ![image](https://github.com/user-attachments/assets/f0332fbe-cf40-47e4-8d3f-e6302e2b57a5)
+![image](https://github.com/user-attachments/assets/f0332fbe-cf40-47e4-8d3f-e6302e2b57a5)
 
 
 
