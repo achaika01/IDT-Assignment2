@@ -202,6 +202,78 @@ CREATE INDEX idx_salesdate_product ON sales (SalesDate, ProductID);
 
 ![image](https://github.com/user-attachments/assets/46de6c95-448a-4089-89f1-2dbc5f1354b1)
 
+WITH TEMPORARY TABLES:
+
+CREATE DATABASE IF NOT EXISTS P04_OPT;
+USE P04_OPT;
+
+
+CREATE INDEX idx_discount_quantity_product ON sales(Discount, Quantity, ProductID);
+CREATE INDEX idx_product_salesdate ON sales(ProductID, SalesDate);
+CREATE INDEX idx_salesperson_salesdate ON sales(SalesPersonID DESC, SalesDate ASC);
+
+CREATE INDEX customerID_ind ON sales(CustomerID);
+CREATE INDEX sales_personID_ind ON sales(SalesPersonID);
+CREATE INDEX productID_ind ON sales(ProductID);
+
+
+CREATE TEMPORARY TABLE tcs AS
+SELECT CustomerID, COUNT(*) AS TotalCustomerSales
+FROM sales
+GROUP BY CustomerID;
+
+CREATE TEMPORARY TABLE adq AS
+SELECT SalesPersonID, AVG(Quantity * (1 - Discount)) AS AvgDiscountedQty
+FROM sales
+GROUP BY SalesPersonID;
+
+CREATE TEMPORARY TABLE lsp AS
+SELECT ProductID, MAX(SalesDate) AS LastSaleOfProduct
+FROM sales
+GROUP BY ProductID;
+
+CREATE TEMPORARY TABLE pss AS
+SELECT ProductID, DATEDIFF(MAX(SalesDate), MIN(SalesDate)) AS ProductSaleSpanDays
+FROM sales
+WHERE SalesDate != '' AND SalesDate IS NOT NULL
+GROUP BY ProductID;
+
+CREATE TEMPORARY TABLE fp AS
+SELECT ProductID
+FROM sales
+WHERE SalesDate >= '2018-01-01' AND SalesDate < '2019-01-01'
+GROUP BY ProductID
+HAVING COUNT(*) > 5;
+
+--  EXPLAIN ANALYZE
+SELECT 
+s.SalesID,
+s.SalesPersonID,
+s.CustomerID,
+s.ProductID,
+s.Quantity,
+s.Discount,
+s.TotalPrice,
+s.SalesDate,
+s.TransactionNumber,
+
+tcs.TotalCustomerSales,
+adq.AvgDiscountedQty,
+lsp.LastSaleOfProduct,
+pss.ProductSaleSpanDays
+
+FROM sales s
+JOIN fp ON fp.ProductID = s.ProductID
+LEFT JOIN tcs ON tcs.CustomerID = s.CustomerID
+LEFT JOIN adq ON adq.SalesPersonID = s.SalesPersonID
+LEFT JOIN lsp ON lsp.ProductID = s.ProductID
+LEFT JOIN pss ON pss.ProductID = s.ProductID
+
+WHERE s.Discount > 0 AND s.Quantity > 5
+
+ORDER BY 
+    s.SalesPersonID DESC,
+    s.SalesDate ASC;
 
 
 
