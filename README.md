@@ -297,6 +297,101 @@ EXPLAIN ANLYZE:
 
 ![image](https://github.com/user-attachments/assets/4b419943-8ba3-4b4f-a26e-b27c787922da)
 
+LET'S FILTER DATA FIRST:
+WITH
+filtered_sales AS (
+    SELECT *
+    FROM sales
+    WHERE Discount > 0 AND Quantity > 5
+),
+
+tcs AS (
+    SELECT CustomerID, COUNT(*) AS TotalCustomerSales
+    FROM sales
+    GROUP BY CustomerID
+),
+adq AS (
+    SELECT SalesPersonID, AVG(Quantity * (1 - Discount)) AS AvgDiscountedQty
+    FROM sales
+    GROUP BY SalesPersonID
+),
+lsp AS (
+    SELECT ProductID, MAX(SalesDate) AS LastSaleOfProduct
+    FROM sales
+    GROUP BY ProductID
+),
+pss AS (
+    SELECT ProductID, DATEDIFF(MAX(SalesDate), MIN(SalesDate)) AS ProductSaleSpanDays
+    FROM sales
+    GROUP BY ProductID
+),
+fp AS (
+    SELECT ProductID
+    FROM sales
+    WHERE SalesDate >= '2018-01-01' AND SalesDate < '2019-01-01'
+    GROUP BY ProductID
+    HAVING COUNT(*) > 5
+)
+
+SELECT 
+    s.SalesID,
+    s.SalesPersonID,
+    s.CustomerID,
+    s.ProductID,
+    s.Quantity,
+    s.Discount,
+    s.TotalPrice,
+    s.SalesDate,
+    s.TransactionNumber,
+
+    tcs.TotalCustomerSales,
+    adq.AvgDiscountedQty,
+    lsp.LastSaleOfProduct,
+    pss.ProductSaleSpanDays
+
+FROM filtered_sales s
+JOIN fp ON s.ProductID = fp.ProductID
+LEFT JOIN tcs ON tcs.CustomerID = s.CustomerID
+LEFT JOIN adq ON adq.SalesPersonID = s.SalesPersonID
+LEFT JOIN lsp ON lsp.ProductID = s.ProductID
+LEFT JOIN pss ON pss.ProductID = s.ProductID
+
+ORDER BY 
+    s.SalesPersonID DESC,
+    s.SalesDate ASC;
+
+EXPLAIN ANALYZE:
+    -> Nested loop left join  (cost=160e+21 rows=1.6e+24) (actual time=79404..84684 rows=1.08e+6 loops=1)
+    -> Nested loop left join  (cost=10e+18 rows=100e+18) (actual time=79400..83818 rows=1.08e+6 loops=1)
+        -> Nested loop inner join  (cost=633e+12 rows=6.31e+15) (actual time=79395..82961 rows=1.08e+6 loops=1)
+            -> Nested loop left join  (cost=1.46e+12 rows=13.9e+12) (actual time=71373..74106 rows=1.08e+6 loops=1)
+                -> Nested loop left join  (cost=66.3e+9 rows=663e+9) (actual time=14396..16444 rows=1.08e+6 loops=1)
+                    -> Sort: SalesPersonID DESC, SalesDate  (cost=716888 rows=6.71e+6) (actual time=9201..9368 rows=1.08e+6 loops=1)
+                        -> Filter: ((sales.Discount > 0) and (sales.Quantity > 5) and (sales.ProductID is not null))  (cost=716888 rows=6.71e+6) (actual time=0.4..7660 rows=1.08e+6 loops=1)
+                            -> Table scan on sales  (cost=716888 rows=6.71e+6) (actual time=0.381..7151 rows=6.76e+6 loops=1)
+                    -> Index lookup on tcs using <auto_key0> (CustomerID=sales.CustomerID)  (cost=1.4e+6..1.4e+6 rows=10) (actual time=0.00626..0.00641 rows=1 loops=1.08e+6)
+                        -> Materialize CTE tcs  (cost=1.4e+6..1.4e+6 rows=98913) (actual time=5195..5195 rows=98759 loops=1)
+                            -> Group aggregate: count(0)  (cost=1.39e+6 rows=98913) (actual time=5.66..5080 rows=98759 loops=1)
+                                -> Covering index scan on sales using customerID_ind  (cost=716888 rows=6.71e+6) (actual time=5.58..4740 rows=6.76e+6 loops=1)
+                -> Index lookup on adq using <auto_key0> (SalesPersonID=sales.SalesPersonID)  (cost=1.39e+6..1.39e+6 rows=10) (actual time=0.0531..0.0532 rows=1 loops=1.08e+6)
+                    -> Materialize CTE adq  (cost=1.39e+6..1.39e+6 rows=21) (actual time=56978..56978 rows=23 loops=1)
+                        -> Group aggregate: avg((sales.Quantity * (1 - sales.Discount)))  (cost=1.39e+6 rows=21) (actual time=2470..56977 rows=23 loops=1)
+                            -> Index scan on sales using sales_personID_ind  (cost=716888 rows=6.71e+6) (actual time=0.65..55858 rows=6.76e+6 loops=1)
+            -> Covering index lookup on fp using <auto_key0> (ProductID=sales.ProductID)  (cost=791445..791447 rows=10) (actual time=0.00794..0.00806 rows=1 loops=1.08e+6)
+                -> Materialize CTE fp  (cost=791445..791445 rows=453) (actual time=8021..8021 rows=452 loops=1)
+                    -> Filter: (count(0) > 5)  (cost=791400 rows=453) (actual time=20.6..8017 rows=452 loops=1)
+                        -> Group aggregate: count(0)  (cost=791400 rows=453) (actual time=20.6..8016 rows=452 loops=1)
+                            -> Filter: ((sales.SalesDate >= '2018-01-01') and (sales.SalesDate < '2019-01-01'))  (cost=716888 rows=745121) (actual time=0.47..7678 rows=6.69e+6 loops=1)
+                                -> Covering index scan on sales using idx_product_salesdate  (cost=716888 rows=6.71e+6) (actual time=0.345..6034 rows=6.76e+6 loops=1)
+        -> Index lookup on lsp using <auto_key0> (ProductID=sales.ProductID)  (cost=24314..24316 rows=10) (actual time=533e-6..659e-6 rows=1 loops=1.08e+6)
+            -> Materialize CTE lsp  (cost=24313..24313 rows=15921) (actual time=5.03..5.03 rows=452 loops=1)
+                -> Covering index skip scan for grouping on sales using idx_product_salesdate  (cost=22721 rows=15921) (actual time=0.383..4.66 rows=452 loops=1)
+    -> Index lookup on pss using <auto_key0> (ProductID=sales.ProductID)  (cost=24315..24317 rows=10) (actual time=514e-6..645e-6 rows=1 loops=1.08e+6)
+        -> Materialize CTE pss  (cost=24314..24314 rows=15921) (actual time=3.62..3.62 rows=452 loops=1)
+            -> Covering index skip scan for grouping on sales using idx_product_salesdate  (cost=22722 rows=15921) (actual time=0.0262..2.8 rows=452 loops=1)
+
+![image](https://github.com/user-attachments/assets/d6cf1858-de2f-4f83-9c74-11d100d0ac3f)
+
 
 
 
