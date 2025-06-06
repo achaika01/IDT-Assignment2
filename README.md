@@ -274,6 +274,30 @@ WHERE s.Discount > 0 AND s.Quantity > 5
 ORDER BY 
     s.SalesPersonID DESC,
     s.SalesDate ASC;
+EXPLAIN ANLYZE:
+    -> Sort: s.SalesPersonID DESC, s.SalesDate  (actual time=988147..988295 rows=1.08e+6 loops=1)
+        -> Stream results  (cost=1.48e+15 rows=14.8e+15) (actual time=985058..986400 rows=1.08e+6 loops=1)
+            -> Left hash join (pss.ProductID = fp.ProductID)  (cost=1.48e+15 rows=14.8e+15) (actual time=985058..985844 rows=1.08e+6 loops=1)
+                -> Left hash join (lsp.ProductID = fp.ProductID)  (cost=3.27e+12 rows=32.7e+12) (actual time=985058..985691 rows=1.08e+6 loops=1)
+                    -> Left hash join (adq.SalesPersonID = s.SalesPersonID)  (cost=5.55e+9 rows=55.5e+9) (actual time=985057..985536 rows=1.08e+6 loops=1)
+                        -> Left hash join (tcs.CustomerID = s.CustomerID)  (cost=241e+6 rows=2.41e+9) (actual time=985057..985376 rows=1.08e+6 loops=1)
+                            -> Nested loop inner join  (cost=209526 rows=24325) (actual time=0.908..982188 rows=1.08e+6 loops=1)
+                                -> Filter: (fp.ProductID is not null)  (cost=45.5 rows=452) (actual time=0.0311..2.8 rows=452 loops=1)
+                                    -> Table scan on fp  (cost=45.5 rows=452) (actual time=0.0298..2.24 rows=452 loops=1)
+                                -> Filter: ((s.Discount > 0) and (s.Quantity > 5))  (cost=421 rows=53.8) (actual time=0.589..2173 rows=2392 loops=452)
+                                    -> Index lookup on s using idx_product_salesdate (ProductID=fp.ProductID)  (cost=421 rows=421) (actual time=0.0803..2163 rows=14952 loops=452)
+                            -> Hash
+                                -> Table scan on tcs  (cost=0.533 rows=99151) (actual time=0.0158..74 rows=98759 loops=1)
+                        -> Hash
+                            -> Table scan on adq  (cost=438e-6 rows=23) (actual time=0.0385..0.0533 rows=23 loops=1)
+                    -> Hash
+                        -> Table scan on lsp  (cost=0.00135 rows=590) (actual time=0.0076..0.281 rows=452 loops=1)
+                -> Hash
+                    -> Table scan on pss  (cost=648e-6 rows=452) (actual time=0.004..0.259 rows=452 loops=1)
+
+![image](https://github.com/user-attachments/assets/4b419943-8ba3-4b4f-a26e-b27c787922da)
+
+
 
 
 
