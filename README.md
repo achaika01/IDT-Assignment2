@@ -390,7 +390,95 @@ EXPLAIN ANALYZE:
     -> Materialize CTE pss  (cost=24314..24314 rows=15921) (actual time=3.62..3.62 rows=452 loops=1)
         -> Covering index skip scan for grouping on sales using idx_product_salesdate  (cost=22722 rows=15921) (actual time=0.0262..2.8 rows=452 loops=1)
 
+![image](https://github.com/user-attachments/assets/229eb781-0473-4438-83e1-01cd2cf20b85)
+
+
 ![image](https://github.com/user-attachments/assets/d6cf1858-de2f-4f83-9c74-11d100d0ac3f)
+
+
+FINAL VERSION:
+
+CREATE DATABASE IF NOT EXISTS P04_OPT;
+USE P04_OPT;
+
+
+CREATE INDEX idx_discount_quantity_product ON sales(Discount, Quantity, ProductID);
+CREATE INDEX idx_product_salesdate ON sales(ProductID, SalesDate);
+CREATE INDEX idx_salesperson_salesdate ON sales(SalesPersonID DESC, SalesDate ASC);
+CREATE INDEX customerID_ind ON sales(CustomerID);
+CREATE INDEX sales_personID_ind ON sales(SalesPersonID);
+
+EXPLAIN ANALYZE
+WITH
+tcs AS (
+    SELECT CustomerID, COUNT(*) AS TotalCustomerSales
+    FROM sales
+    GROUP BY CustomerID
+),
+adq AS (
+    SELECT SalesPersonID, AVG(Quantity * (1 - Discount)) AS AvgDiscountedQty
+    FROM sales
+    GROUP BY SalesPersonID
+),
+lsp AS (
+    SELECT ProductID, MAX(SalesDate) AS LastSaleOfProduct
+    FROM sales
+    GROUP BY ProductID
+),
+pss AS (
+    SELECT ProductID, DATEDIFF(MAX(SalesDate), MIN(SalesDate)) AS ProductSaleSpanDays
+    FROM sales
+    GROUP BY ProductID
+),
+fp AS (
+    SELECT ProductID
+    FROM sales
+    WHERE SalesDate >= '2018-01-01' AND SalesDate < '2019-01-01'
+    GROUP BY ProductID
+    HAVING COUNT(*) > 5
+)
+
+SELECT 
+    s.SalesID,
+    s.SalesPersonID,
+    s.CustomerID,
+    s.ProductID,
+    s.Quantity,
+    s.Discount,
+    s.TotalPrice,
+    s.SalesDate,
+    s.TransactionNumber,
+
+    tcs.TotalCustomerSales,
+    adq.AvgDiscountedQty,
+    lsp.LastSaleOfProduct,
+    pss.ProductSaleSpanDays
+
+FROM (
+    SELECT *
+    FROM sales FORCE INDEX (idx_discount_quantity_product, idx_salesperson_salesdate)
+    WHERE Discount > 0 AND Quantity > 5
+) AS s
+
+JOIN fp ON s.ProductID = fp.ProductID
+LEFT JOIN tcs ON tcs.CustomerID = s.CustomerID
+LEFT JOIN adq ON adq.SalesPersonID = s.SalesPersonID
+LEFT JOIN lsp ON lsp.ProductID = s.ProductID
+LEFT JOIN pss ON pss.ProductID = s.ProductID
+
+ORDER BY 
+    s.SalesPersonID DESC,
+    s.SalesDate ASC;
+
+![image](https://github.com/user-attachments/assets/b963e856-9b87-44bb-827b-cc56323834e1)
+
+![image](https://github.com/user-attachments/assets/9ab5ec72-690f-445d-83d2-e7b0fe6cc452)
+
+![image](https://github.com/user-attachments/assets/fe1abe97-e877-4584-8db0-b8710186d10f)
+
+
+
+
 
 
 
