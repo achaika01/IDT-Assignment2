@@ -1,14 +1,42 @@
 CREATE DATABASE IF NOT EXISTS P04_OPT;
 USE P04_OPT;
 
-CREATE INDEX sales_personID_ind ON sales(SalesPersonID);
-CREATE INDEX productID_ind ON sales(ProductID);
+
+CREATE INDEX idx_discount_quantity_product ON sales(Discount, Quantity, ProductID);
+CREATE INDEX idx_product_salesdate ON sales(ProductID, SalesDate);
+CREATE INDEX idx_salesperson_salesdate ON sales(SalesPersonID DESC, SalesDate ASC);
 CREATE INDEX customerID_ind ON sales(CustomerID);
+CREATE INDEX sales_personID_ind ON sales(SalesPersonID);
 
-CREATE INDEX idx_quantity ON sales (Quantity);
-
-CREATE INDEX idx_salesdate_product ON sales (SalesDate, ProductID);
-
+EXPLAIN ANALYZE
+WITH
+tcs AS (
+    SELECT CustomerID, COUNT(*) AS TotalCustomerSales
+    FROM sales
+    GROUP BY CustomerID
+),
+adq AS (
+    SELECT SalesPersonID, AVG(Quantity * (1 - Discount)) AS AvgDiscountedQty
+    FROM sales
+    GROUP BY SalesPersonID
+),
+lsp AS (
+    SELECT ProductID, MAX(SalesDate) AS LastSaleOfProduct
+    FROM sales
+    GROUP BY ProductID
+),
+pss AS (
+    SELECT ProductID, DATEDIFF(MAX(SalesDate), MIN(SalesDate)) AS ProductSaleSpanDays
+    FROM sales
+    GROUP BY ProductID
+),
+fp AS (
+    SELECT ProductID
+    FROM sales
+    WHERE SalesDate >= '2018-01-01' AND SalesDate < '2019-01-01'
+    GROUP BY ProductID
+    HAVING COUNT(*) > 5
+)
 
 SELECT 
     s.SalesID,
@@ -21,43 +49,23 @@ SELECT
     s.SalesDate,
     s.TransactionNumber,
 
-    (SELECT COUNT(*) 
-     FROM sales s2 
-     WHERE s2.CustomerID = s.CustomerID) AS TotalCustomerSales,
+    tcs.TotalCustomerSales,
+    adq.AvgDiscountedQty,
+    lsp.LastSaleOfProduct,
+    pss.ProductSaleSpanDays
 
-    (SELECT AVG(s3.Quantity * (1 - s3.Discount)) 
-     FROM sales s3 
-     WHERE s3.SalesPersonID = s.SalesPersonID) AS AvgDiscountedQty,
+FROM (
+    SELECT *
+    FROM sales FORCE INDEX (idx_discount_quantity_product, idx_salesperson_salesdate)
+    WHERE Discount > 0 AND Quantity > 5
+) AS s
 
-    (SELECT MAX(s4.SalesDate) 
-     FROM sales s4 
-     WHERE s4.ProductID = s.ProductID) AS LastSaleOfProduct,
-
-    (SELECT DATEDIFF(MAX(s5.SalesDate), MIN(s5.SalesDate)) 
-     FROM sales s5 
-     WHERE s5.ProductID = s.ProductID) AS ProductSaleSpanDays
-
-FROM sales s FORCE INDEX (idx_quantity)
-
-JOIN (
-    SELECT ProductID
-    FROM sales
-    WHERE SalesDate >= '2018-01-01' AND SalesDate < '2019-01-01'
-    GROUP BY ProductID
-    HAVING COUNT(*) > 5
-) fp ON fp.ProductID = s.ProductID
-
-WHERE s.Discount > 0 AND s.Quantity > 5
-
+JOIN fp ON s.ProductID = fp.ProductID
+LEFT JOIN tcs ON tcs.CustomerID = s.CustomerID
+LEFT JOIN adq ON adq.SalesPersonID = s.SalesPersonID
+LEFT JOIN lsp ON lsp.ProductID = s.ProductID
+LEFT JOIN pss ON pss.ProductID = s.ProductID
 
 ORDER BY 
     s.SalesPersonID DESC,
     s.SalesDate ASC;
-
-
-
-
-
-
-
-
